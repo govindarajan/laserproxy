@@ -1,2 +1,2 @@
-# lazerproxy
-Lazer Proxy for making HTTP requests. 
+# laserproxy
+Laser Proxy for making HTTP requests. 
