@@ -5,8 +5,8 @@ import (
 	"net"
 )
 
-// List all the Ip's which are connected.
-func GetIps() []string {
+//GetLocalIPs returns various interface ips for the hostname passed
+func GetLocalIPs() []string {
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		fmt.Print(fmt.Errorf("Error getting IP addresses: %+v\n", err.Error()))
