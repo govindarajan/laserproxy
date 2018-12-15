@@ -5,7 +5,7 @@ import (
 	"net"
 )
 
-// List all the Ip's which are present in server.
+// List all the Ip's which are connected.
 func GetIps() []string {
 	ifaces, err := net.Interfaces()
 	if err != nil {
