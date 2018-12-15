@@ -4,4 +4,5 @@ package monitor
 type IMonitor interface {
 	GetMonitorresults()
 	Run()
+	Schedule(seconds int)
 }

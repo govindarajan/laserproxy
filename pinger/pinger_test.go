@@ -12,7 +12,6 @@ import (
 //Normal user cannot emit icmp packets
 func Test_Pinger(t *testing.T) {
 	pong, err := pinger.NewPinger("115.248.131.195")
-	//	pong, err := pinger.NewPinger("8.8.8.8")
 	if err != nil {
 		t.Error(err)
 	}
