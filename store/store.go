@@ -8,8 +8,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// InitDB - initialize the DB connection string and
-// also create required tables
+// InitDB - initialize the DB connection string
 func InitDB(filepath string) *sql.DB {
 	db, err := sql.Open("sqlite3", filepath)
 	if err != nil {
