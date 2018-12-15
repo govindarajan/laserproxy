@@ -2,6 +2,7 @@ package helper
 
 import (
 	"bytes"
+	"fmt"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -12,9 +13,10 @@ import (
 
 // CreateOrUpdateRoute used to create a route table for the given IP.
 // Assumption: Table = 100+id
-func CreateOrUpdateRoute(id int, ip string) error {
+func CreateOrUpdateRoute(id int, ip, gw string) error {
 	// ip rule add from <ip> table <rtable>
 	// ip rule add to <ip> table <rtable>
+	// ip route add default via <gw> table <rtable>
 	table := 100 + id
 	if e := clearOldRule(table); e != nil {
 		return e
@@ -34,6 +36,15 @@ func CreateOrUpdateRoute(id int, ip string) error {
 		return err
 	}
 
+	cmd = exec.Command("ip", "route", "add", "default", "via", gw, "table", strconv.Itoa(table))
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	err = cmd.Run()
+	if err != nil {
+		logger.LogError(fmt.Sprint(err) + ": " + stderr.String() + "GW:" + gw)
+		return err
+	}
+
 	return nil
 }
 
@@ -44,8 +55,8 @@ func clearOldRule(tableId int) error {
 	}
 	lines := strings.Split(string(out), "\n")
 	rules := 0
+	regex := regexp.MustCompile(":.*" + strconv.Itoa(tableId))
 	for _, line := range lines {
-		regex := regexp.MustCompile(":.*" + strconv.Itoa(tableId))
 		if regex.MatchString(line) {
 			rules++
 		}
@@ -65,14 +76,14 @@ func clearOldRule(tableId int) error {
 func ConfigureRoute() {
 	// Get all the IP address
 	// For each, Create Route
-	ips, e := GetLocalIPs()
+	lips, e := GetLocalIPs()
 	if e != nil {
 		logger.LogError("ConfigureRoute: " + e.Error())
 		return
 	}
-	for i, ip := range ips {
-		logger.LogDebug("Configuring route for " + ip)
-		e := CreateOrUpdateRoute(i, ip)
+	for i, lip := range lips {
+		logger.LogDebug("Configuring route for " + lip.IP + "" + lip.Gateway)
+		e := CreateOrUpdateRoute(i, lip.IP, lip.Gateway)
 		if e != nil {
 			logger.LogError(e.Error())
 		}

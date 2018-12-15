@@ -13,7 +13,7 @@ import (
 	"github.com/govindarajan/laserproxy/logger"
 )
 
-var transports map[string]http.RoundTripper
+var transports = make(map[string]http.RoundTripper)
 var mutex = &sync.RWMutex{}
 
 func getTransport(ip string) http.RoundTripper {
@@ -26,7 +26,7 @@ func getTransport(ip string) http.RoundTripper {
 
 	// otherwise form, store and return
 	// TODO: Get values from config
-	ipaddr, err := net.ResolveTCPAddr("tcp", ip)
+	ipaddr, err := net.ResolveTCPAddr("tcp", ip+":0")
 	if err != nil {
 		// Incase of error, return Default Transport.
 		logger.LogWarn(err.Error())
@@ -99,8 +99,8 @@ func getOutgoingRoute() string {
 	// TODO: Based on the config, return best route or wighet based route.
 	ips, _ := helper.GetLocalIPs()
 	r := ips[rand.Intn(len(ips))]
-	logger.LogDebug("Outbound Route:" + r)
-	return r
+	logger.LogDebug("Outbound Route:" + r.IP)
+	return r.IP
 }
 
 func getTargetIPIfAny() *string {
