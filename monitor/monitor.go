@@ -17,12 +17,12 @@ var statsChan chan *pinger.Statistics
 //Monitor contains monitor funcs and properties
 type Monitor struct {
 	wtGroup sync.WaitGroup
-	done    chan bool
+	Done    chan bool
 }
 
 //NewMonitor returns Monitor object
 func NewMonitor() (*Monitor, error) {
-	return &Monitor{done: make(chan bool)}, nil
+	return &Monitor{Done: make(chan bool)}, nil
 }
 
 //Schedule runs Run() on the intreval seconds passed
@@ -37,9 +37,9 @@ func (m *Monitor) Schedule(seconds int) {
 		case <-interval.C:
 			m.Run()
 		case <-osChan:
-			close(m.done)
+			close(m.Done)
 			return
-		case <-m.done:
+		case <-m.Done:
 			m.wtGroup.Wait()
 			return
 
