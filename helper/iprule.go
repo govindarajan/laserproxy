@@ -2,11 +2,12 @@ package helper
 
 import (
 	"bytes"
-	"fmt"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/govindarajan/laserproxy/logger"
 )
 
 // CreateOrUpdateRoute used to create a route table for the given IP.
@@ -46,7 +47,6 @@ func clearOldRule(tableId int) error {
 	for _, line := range lines {
 		regex := regexp.MustCompile(":.*" + strconv.Itoa(tableId))
 		if regex.MatchString(line) {
-			fmt.Println("Match", line)
 			rules++
 		}
 	}
@@ -58,4 +58,24 @@ func clearOldRule(tableId int) error {
 		}
 	}
 	return nil
+}
+
+// ConfigureRoute used to add route for every IP address.
+// So that, we can choose IP on the go while making request.
+func ConfigureRoute() {
+	// Get all the IP address
+	// For each, Create Route
+	ips, e := GetLocalIPs()
+	if e != nil {
+		logger.LogError("ConfigureRoute: " + e.Error())
+		return
+	}
+	for i, ip := range ips {
+		logger.LogDebug("Configuring route for " + ip)
+		e := CreateOrUpdateRoute(i, ip)
+		if e != nil {
+			logger.LogError(e.Error())
+		}
+	}
+
 }
