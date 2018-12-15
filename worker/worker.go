@@ -11,6 +11,7 @@ import (
 
 	"github.com/govindarajan/laserproxy/helper"
 	"github.com/govindarajan/laserproxy/logger"
+	"github.com/govindarajan/laserproxy/monitor"
 )
 
 var transports = make(map[string]http.RoundTripper)
@@ -80,6 +81,13 @@ func copyHeader(dst, src http.Header) {
 }
 
 func StartProxy() {
+
+	//call monitor to do healthchecks
+	monitor, err := monitor.NewMonitor()
+	if err != nil {
+		logger.LogCritical("unable to do healthchecks")
+	}
+	monitor.Schedule(100)
 	server := &http.Server{
 		Addr: ":8888",
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -101,10 +109,15 @@ func StartProxy() {
 
 func getOutgoingRoute() string {
 	// TODO: Based on the config, return best route or wighet based route.
-	ips, _ := helper.GetLocalIPs()
-	r := ips[rand.Intn(len(ips))]
-	logger.LogDebug("Outbound Route:" + r.IP)
-	return r.IP
+	results, err := monitor.GetMonitorResults()
+	if err != nil {
+		logger.LogDebug("no stats for ips found")
+		ips, _ := helper.GetLocalIPs()
+		r := ips[rand.Intn(len(ips))]
+		logger.LogDebug("Outbound Route:" + r.IP)
+		return r.IP
+	}
+	return results.Interfaces[0]
 }
 
 func getTargetIPIfAny(host string) *string {

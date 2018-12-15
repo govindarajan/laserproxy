@@ -56,7 +56,7 @@ type Pinger struct {
 	//Addr is the Address host
 	addr     string
 	ipv4     bool
-	source   string
+	Source   string
 	size     int
 	sequence int
 	network  string
@@ -141,7 +141,7 @@ func (p *Pinger) Run() error {
 //run sends the ICMP packets to the targetted IP
 func (p *Pinger) run() error {
 	conn := new(icmp.PacketConn)
-	if conn = p.listen(ipv4Proto[p.network], p.source); conn == nil {
+	if conn = p.listen(ipv4Proto[p.network], p.Source); conn == nil {
 		return errors.New("unable to ping ip address")
 	}
 	defer conn.Close()
@@ -233,8 +233,8 @@ func (p *Pinger) Statistics() *Statistics {
 }
 
 //listen listens for the echo packets
-func (p *Pinger) listen(netProto string, source string) *icmp.PacketConn {
-	conn, err := icmp.ListenPacket(netProto, source)
+func (p *Pinger) listen(netProto string, Source string) *icmp.PacketConn {
+	conn, err := icmp.ListenPacket(netProto, Source)
 	if err != nil {
 		log.Printf("Error listening ICMP packets %s\n", err.Error())
 		close(p.done)

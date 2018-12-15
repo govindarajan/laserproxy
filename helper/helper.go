@@ -64,3 +64,12 @@ func getGateway(iface string) string {
 	//logger.LogError("Not able to get Gateway")
 	return ""
 }
+
+//GetHostIPs get the list of IPs of a hostname
+func GetHostIPs(hostname string) ([]string, error) {
+	ip, err := net.LookupHost(hostname)
+	if err != nil {
+		return nil, err
+	}
+	return ip, nil
+}
