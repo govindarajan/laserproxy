@@ -54,7 +54,10 @@ func getTransport(ip string) http.RoundTripper {
 func handleHTTP(w http.ResponseWriter, r *http.Request) {
 
 	outgoing := getOutgoingRoute()
-
+	target := getTargetIPIfAny(r.URL.Host)
+	if target != nil {
+		r.URL.Host = *target
+	}
 	resp, err := getTransport(outgoing).RoundTrip(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
@@ -62,6 +65,7 @@ func handleHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 	resp.Header.Add("X-Proxy", "LaserProxy")
+	// TODO: Should we retry incase of timeout??
 	copyHeader(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
@@ -103,12 +107,7 @@ func getOutgoingRoute() string {
 	return r.IP
 }
 
-func getTargetIPIfAny() *string {
-	return nil
-}
+func getTargetIPIfAny(host string) *string {
 
-func Start() {
-	// Get Ougoing Route
-	// Get Target IP if there is any
-	// Make request with above details.
+	return nil
 }

@@ -15,6 +15,7 @@ type LocalIPAddr struct {
 }
 
 //GetLocalIPs returns various interface ips for the hostname passed
+// TODO: Get it from cache
 func GetLocalIPs() ([]LocalIPAddr, error) {
 	LIPs := make([]LocalIPAddr, 0)
 	ifaces, err := net.Interfaces()
