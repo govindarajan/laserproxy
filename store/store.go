@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"os"
 
 	"github.com/govindarajan/laserproxy/logger"
 	_ "github.com/mattn/go-sqlite3"
@@ -18,7 +19,23 @@ func InitDB(filepath string) *sql.DB {
 	if db == nil {
 		panic("DB nil")
 	}
+	// create table if not exists
+	if _, err := os.Stat(filepath); os.IsNotExist(err) {
+		sqlStmt := `
+		CREATE TABLE IF NOT EXISTS liveRequests (id INTEGER PRIMARY KEY AUTOINCREMENT, method TEXT, requestURI TEXT, sourceID INTEGER, targetID INTGER);
+		CREATE TABLE IF NOT EXISTS HTTPTargets (id INTEGER PRIMARY KEY AUTOINCREMENT, host TEXT, ip TEXT, port INTEGER, weight INTEGER, status TEXT, maxRequests INTEGER);
+		CREATE TABLE IF NOT EXISTS requestCounter (id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT, method TEXT, count INTEGER, statusCode INTEGER);
+		CREATE TABLE IF NOT EXISTS liveRoutes (id INTEGER PRIMARY KEY AUTOINCREMENT, host TEXT, ip TEXT, port INTEGER);
+		CREATE TABLE IF NOT EXISTS HTTPSourceRoutes (id INTEGER PRIMARY KEY AUTOINCREMENT, Interface TEXT, Type TEXT, healthCheck INTEGER, internalGateway TEXT, externalGateway TEXT, weight INTEGER, status TEXT, MaxRequests INTEGER);
+		`
+		_, err := db.Exec(sqlStmt)
+		if err != nil {
+			logger.LogError("Exception at SQLite action: %+v" + err.Error())
+			return nil
+		}
+	}
 	return db
+
 }
 
 // Write or update rows with parameterized query String
