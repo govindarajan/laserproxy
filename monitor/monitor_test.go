@@ -11,5 +11,5 @@ func Test_MonitorRun(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	monitor.Run()
+	monitor.Schedule(100)
 }

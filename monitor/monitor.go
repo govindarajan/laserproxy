@@ -3,7 +3,10 @@ package monitor
 import (
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/govindarajan/laserproxy/pinger"
@@ -14,11 +17,34 @@ var statsChan chan *pinger.Statistics
 //Monitor contains monitor funcs and properties
 type Monitor struct {
 	wtGroup sync.WaitGroup
+	done    chan bool
 }
 
 //NewMonitor returns Monitor object
 func NewMonitor() (*Monitor, error) {
-	return &Monitor{}, nil
+	return &Monitor{done: make(chan bool)}, nil
+}
+
+//Schedule runs Run() on the intreval seconds passed
+func (m *Monitor) Schedule(seconds int) {
+	interval := time.NewTicker(time.Duration(seconds))
+	osChan := make(chan os.Signal, 1)
+	signal.Notify(osChan, os.Interrupt)
+	signal.Notify(osChan, syscall.SIGTERM)
+
+	for {
+		select {
+		case <-interval.C:
+			m.Run()
+		case <-osChan:
+			close(m.done)
+			return
+		case <-m.done:
+			m.wtGroup.Wait()
+			return
+
+		}
+	}
 }
 
 //GetMonitorResults returns the monitor statistics
