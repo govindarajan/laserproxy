@@ -83,11 +83,12 @@ func copyHeader(dst, src http.Header) {
 func StartProxy() {
 
 	//call monitor to do healthchecks
-	monitor, err := monitor.NewMonitor()
-	if err != nil {
-		logger.LogCritical("unable to do healthchecks")
-	}
-	monitor.Schedule(100)
+	//Todo: fix go routine leaks here
+	// monitor, err := monitor.NewMonitor()
+	// if err != nil {
+	// 	logger.LogCritical("unable to do healthchecks")
+	// }
+	// monitor.Schedule(10000)
 	server := &http.Server{
 		Addr: ":8888",
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -109,6 +110,11 @@ func StartProxy() {
 
 func getOutgoingRoute() string {
 	// TODO: Based on the config, return best route or wighet based route.
+	m, err := monitor.NewMonitor()
+	if err != nil {
+		logger.LogCritical("unable to do healthchecks")
+	}
+	m.Run()
 	results, err := monitor.GetMonitorResults()
 	if err != nil {
 		logger.LogDebug("no stats for ips found")
@@ -117,6 +123,8 @@ func getOutgoingRoute() string {
 		logger.LogDebug("Outbound Route:" + r.IP)
 		return r.IP
 	}
+	logger.LogDebug("Outbound Route:" + results.Interfaces[0])
+
 	return results.Interfaces[0]
 }
 

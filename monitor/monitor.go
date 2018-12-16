@@ -69,7 +69,7 @@ func (m *Monitor) collectResults() {
 				fastestlocalIP = stat.Addr
 			}
 		}
-		fmt.Println(stat)
+		//fmt.Println(stat)
 	}
 	fmt.Println(fastestlocalIP, "is the fastest local IP")
 }
