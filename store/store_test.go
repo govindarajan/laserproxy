@@ -2,6 +2,8 @@ package store_test
 
 import (
 	"testing"
+
+	_ "github.com/govindarajan/laserproxy/store"
 )
 
 func TestAll(t *testing.T) {
@@ -12,11 +14,11 @@ func TestAll(t *testing.T) {
 	// CreateTable(db)
 
 	var SQLstr string
-	SQLstr = "insert into liveRequests ('get', 'exotel.com', 1, 2)"
+	SQLstr = "insert into liveRequests (nil, 'get', 'exotel.com', 1, 2);"
 	Write(db, SQLstr)
 
 	var RSQLstr string
-	RSQLstr = "select * from liveRequests"
+	RSQLstr = "select * from liveRequests;"
 	readRow := Read(db, RSQLstr)
 	t.Log(readRow)
 }

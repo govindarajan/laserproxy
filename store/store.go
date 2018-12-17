@@ -39,13 +39,13 @@ func InitDB(filepath string) *sql.DB {
 }
 
 // Write or update rows with parameterized query String
-func Write(db *sql.DB, StoreSQLStr string) error {
+func Write(db *sql.DB, StoreSQLStr string) (bool, error) {
 	_, err := db.Exec(StoreSQLStr)
 	if err != nil {
 		logger.LogError("Exception at SQLite action: %+v" + err.Error())
-		return err
+		return false, err
 	}
-	return nil
+	return true, nil
 }
 
 // Read data from the table with queryString
