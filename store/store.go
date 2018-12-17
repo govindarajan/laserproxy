@@ -2,7 +2,6 @@ package store
 
 import (
 	"database/sql"
-	"fmt"
 	"os"
 
 	"github.com/govindarajan/laserproxy/logger"
@@ -65,7 +64,7 @@ func Read(db *sql.DB, selectSQLStr string) [][]string {
 	}
 	cols, err := rows.Columns()
 	if err != nil {
-		fmt.Println("SQLite: Exception at et columns", err)
+		logger.LogError("SQLite: Exception at et columns: %+v" + err.Error())
 		return nil
 	}
 	rawResult := make([][]byte, len(cols))
@@ -79,7 +78,7 @@ func Read(db *sql.DB, selectSQLStr string) [][]string {
 	for rows.Next() {
 		err = rows.Scan(dest...)
 		if err != nil {
-			fmt.Println("Failed to scan row", err)
+			logger.LogError("SQLite: Failed to scan row: %+v" + err.Error())
 			return nil
 		}
 
