@@ -2,95 +2,34 @@ package store
 
 import (
 	"database/sql"
-	"fmt"
-	"os"
+	"errors"
 
-	"github.com/govindarajan/laserproxy/logger"
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// InitDB - initialize the DB connection string
-func InitDB(filepath string) *sql.DB {
-	db, err := sql.Open("sqlite3", filepath)
+// InitMainDB - initialize the DB connection string
+func InitMainDB() (*sql.DB, error) {
+	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
-		logger.LogError("Exception at SQLite action: %+v" + err.Error())
-		return nil
+		return nil, err
 	}
 	if db == nil {
-		panic("DB nil")
+		return nil, errors.New("Something went wrong in MainDB init")
 	}
-	// create table if not exists
-	if _, err := os.Stat(filepath); os.IsNotExist(err) {
-		sqlStmt := `
-		CREATE TABLE IF NOT EXISTS liveRequests (id INTEGER PRIMARY KEY AUTOINCREMENT, method TEXT, requestURI TEXT, sourceID INTEGER, targetID INTGER);
-		CREATE TABLE IF NOT EXISTS HTTPTargets (id INTEGER PRIMARY KEY AUTOINCREMENT, host TEXT, ip TEXT, port INTEGER, weight INTEGER, status TEXT, maxRequests INTEGER);
-		CREATE TABLE IF NOT EXISTS requestCounter (id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT, method TEXT, count INTEGER, statusCode INTEGER);
-		CREATE TABLE IF NOT EXISTS liveRoutes (id INTEGER PRIMARY KEY AUTOINCREMENT, host TEXT, ip TEXT, port INTEGER);
-		CREATE TABLE IF NOT EXISTS HTTPSourceRoutes (id INTEGER PRIMARY KEY AUTOINCREMENT, Interface TEXT, Type TEXT, healthCheck INTEGER, internalGateway TEXT, externalGateway TEXT, weight INTEGER, status TEXT, MaxRequests INTEGER);
-		`
-		_, err := db.Exec(sqlStmt)
-		if err != nil {
-			logger.LogError("Exception at SQLite action: %+v" + err.Error())
-			return nil
-		}
+	if e := InitFrontends(db); e != nil {
+		return nil, e
 	}
-	return db
-
-}
-
-// Write or update rows with parameterized query String
-func Write(db *sql.DB, StoreSQLStr string) error {
-	_, err := db.Exec(StoreSQLStr)
-	if err != nil {
-		logger.LogError("Exception at SQLite action: %+v" + err.Error())
-		return err
+	if e := InitLocalRoutes(db); e != nil {
+		return nil, e
 	}
-	return nil
-}
-
-// Read data from the table with queryString
-func Read(db *sql.DB, selectSQLStr string) [][]string {
-	rows, err := db.Query(selectSQLStr)
-	if err != nil {
-		logger.LogError("SQLite: Exception at SQLite read: %+v" + err.Error())
-		return nil
+	if e := InitBackends(db); e != nil {
+		return nil, e
 	}
-	defer rows.Close()
-
-	err = rows.Err()
-	if err != nil {
-		logger.LogError("SQLite: Exception at SQLite read rows: %+v" + err.Error())
-		return nil
-
+	if e := InitTargets(db); e != nil {
+		return nil, e
 	}
-	cols, err := rows.Columns()
-	if err != nil {
-		fmt.Println("SQLite: Exception at et columns", err)
-		return nil
+	if e := InitTargetLists(db); e != nil {
+		return nil, e
 	}
-	rawResult := make([][]byte, len(cols))
-	result := make([]string, len(cols))
-
-	dest := make([]interface{}, len(cols))
-	for i := range rawResult {
-		dest[i] = &rawResult[i]
-	}
-	values := [][]string{}
-	for rows.Next() {
-		err = rows.Scan(dest...)
-		if err != nil {
-			fmt.Println("Failed to scan row", err)
-			return nil
-		}
-
-		for i, raw := range rawResult {
-			if raw == nil {
-				result[i] = "\\N"
-			} else {
-				result[i] = string(raw)
-			}
-		}
-		values = append(values, result)
-	}
-	return values
+	return db, nil
 }
