@@ -2,6 +2,7 @@ package worker
 
 import (
 	"crypto/tls"
+	"database/sql"
 	"io"
 	"math/rand"
 	"net"
@@ -12,6 +13,7 @@ import (
 	"github.com/govindarajan/laserproxy/helper"
 	"github.com/govindarajan/laserproxy/logger"
 	"github.com/govindarajan/laserproxy/monitor"
+	"github.com/govindarajan/laserproxy/store"
 )
 
 var transports = make(map[string]http.RoundTripper)
@@ -130,5 +132,19 @@ func getOutgoingRoute() string {
 
 func getTargetIPIfAny(host string) *string {
 
+	return nil
+}
+
+// StartFrontEnds used to start all the front end proxies
+// by reading the frondends table.
+func StartFrontEnds(db *sql.DB) error {
+	fes, err := store.ReadFrontends(db)
+	if err != nil {
+		return err
+	}
+	for _, fe := range fes {
+		// Start proxies
+		logger.LogDebug(fe.ListenAddr.String())
+	}
 	return nil
 }

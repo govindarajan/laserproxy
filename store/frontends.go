@@ -54,3 +54,19 @@ func WriteFrontends(db *sql.DB, fe *Frontends) error {
 	_, err = stmt.Exec(fe.Id, fe.ListenAddr, fe.Port, fe.Balance, fe.Type)
 	return err
 }
+
+// ReadFrontends used to read all the front ends from given DB
+func ReadFrontends(db *sql.DB) ([]Frontends, error) {
+	rows, err := db.Query("SELECT Id, ListenAddr, Port, Balance, Type FROM Frontends")
+	if err != nil {
+		return nil, err
+	}
+
+	var res []Frontends
+	for rows.Next() {
+		var fe Frontends
+		rows.Scan(&fe.Id, &fe.ListenAddr, &fe.Port, &fe.Balance, &fe.Type)
+		res = append(res, fe)
+	}
+	return res, nil
+}
