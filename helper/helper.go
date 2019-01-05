@@ -4,6 +4,7 @@ import (
 	"net"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/govindarajan/laserproxy/logger"
 )
@@ -72,4 +73,36 @@ func GetHostIPs(hostname string) ([]string, error) {
 		return nil, err
 	}
 	return ip, nil
+}
+
+// WatchNetworkChange will keep checking the network change.
+// If detected, it send signal in the change channel.
+// This is not thread-safe.
+func WatchNetworkChange(checkIntlSec int, change chan bool) {
+	var existingIPs []LocalIPAddr
+	for {
+		time.Sleep(time.Duration(checkIntlSec) * time.Second)
+		curIPs, err := GetLocalIPs()
+		if err != nil {
+			logger.LogError("Error while getting local IPs")
+			continue
+		}
+		if existingIPs == nil {
+			// First time. Lets store it.
+			existingIPs = curIPs
+			continue
+		}
+
+		if len(existingIPs) != len(curIPs) {
+			change <- true
+		} else {
+			for i, _ := range curIPs {
+				if curIPs[i] != existingIPs[i] {
+					change <- true
+					break
+				}
+			}
+		}
+		existingIPs = curIPs
+	}
 }
