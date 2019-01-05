@@ -146,7 +146,7 @@ func getLocalInterfaces() []string {
 	}
 	var addresses []string
 	for _, ip := range localIPAddresses {
-		addresses = append(addresses, ip.IP)
+		addresses = append(addresses, ip.IP.String())
 	}
 	return addresses
 }

@@ -11,8 +11,8 @@ import (
 
 type LocalIPAddr struct {
 	IFace   string
-	IP      string
-	Gateway string
+	IP      net.IP
+	Gateway net.IP
 }
 
 //GetLocalIPs returns various interface ips for the hostname passed
@@ -34,9 +34,9 @@ func GetLocalIPs() ([]LocalIPAddr, error) {
 		for _, addr := range addrs {
 			if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
 				if ipnet.IP.To4() != nil {
-					lip := LocalIPAddr{IP: ipnet.IP.String(), IFace: iface.Name}
+					lip := LocalIPAddr{IP: ipnet.IP, IFace: iface.Name}
 					lip.Gateway = getGateway(iface.Name)
-					if lip.Gateway == "" {
+					if lip.Gateway == nil {
 						continue
 					}
 					LIPs = append(LIPs, lip)
@@ -47,23 +47,23 @@ func GetLocalIPs() ([]LocalIPAddr, error) {
 	return LIPs, nil
 }
 
-func getGateway(iface string) string {
+func getGateway(iface string) net.IP {
 
 	out, err := exec.Command("ip", "route", "show").Output()
 	if err != nil {
 		logger.LogError(err.Error())
-		return ""
+		return nil
 	}
 	lines := strings.Split(string(out), "\n")
 	for _, line := range lines {
 		words := strings.Split(line, " ")
 		if len(words) > 4 && words[0] == "default" &&
 			words[4] == iface {
-			return words[2]
+			return net.ParseIP(words[2])
 		}
 	}
 	//logger.LogError("Not able to get Gateway")
-	return ""
+	return nil
 }
 
 //GetHostIPs get the list of IPs of a hostname
@@ -97,7 +97,7 @@ func WatchNetworkChange(checkIntlSec int, change chan bool) {
 			change <- true
 		} else {
 			for i, _ := range curIPs {
-				if curIPs[i] != existingIPs[i] {
+				if !curIPs[i].IP.Equal(existingIPs[i].IP) {
 					change <- true
 					break
 				}

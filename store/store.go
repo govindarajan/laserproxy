@@ -8,28 +8,29 @@ import (
 )
 
 // InitMainDB - initialize the DB connection string
-func InitMainDB() (*sql.DB, error) {
-	db, err := sql.Open("sqlite3", ":memory:")
-	if err != nil {
-		return nil, err
-	}
+func InitMainDB(db *sql.DB) error {
 	if db == nil {
-		return nil, errors.New("Something went wrong in MainDB init")
+		return errors.New("Something went wrong in MainDB init")
 	}
 	if e := InitFrontends(db); e != nil {
-		return nil, e
+		return e
 	}
-	if e := InitLocalRoutes(db); e != nil {
-		return nil, e
+	if e := InitLocalRoute(db); e != nil {
+		return e
 	}
 	if e := InitBackends(db); e != nil {
-		return nil, e
+		return e
 	}
 	if e := InitTargets(db); e != nil {
-		return nil, e
+		return e
 	}
 	if e := InitTargetLists(db); e != nil {
-		return nil, e
+		return e
 	}
-	return db, nil
+	return nil
+}
+
+// GetConnection used to get main DB connection.
+func GetConnection() (*sql.DB, error) {
+	return sql.Open("sqlite3", ":memory:")
 }

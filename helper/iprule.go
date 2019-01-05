@@ -2,7 +2,9 @@ package helper
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"net"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -13,10 +15,16 @@ import (
 
 // CreateOrUpdateRoute used to create a route table for the given IP.
 // Assumption: Table = 100+id
-func CreateOrUpdateRoute(id int, ip, gw string) error {
+func CreateOrUpdateRoute(id int, IP, GW net.IP) error {
 	// ip rule add from <ip> table <rtable>
 	// ip rule add to <ip> table <rtable>
 	// ip route add default via <gw> table <rtable>
+
+	if IP == nil || GW == nil {
+		return errors.New("IP cannot be nil.")
+	}
+	ip := IP.String()
+	gw := GW.String()
 	table := 100 + id
 	if e := clearOldRule(table); e != nil {
 		return e
@@ -41,7 +49,7 @@ func CreateOrUpdateRoute(id int, ip, gw string) error {
 	cmd.Stderr = &stderr
 	err = cmd.Run()
 	if err != nil {
-		logger.LogError(fmt.Sprint(err) + ": " + stderr.String() + "GW:" + gw)
+		logger.LogError("GW:" + gw + " " + fmt.Sprint(err) + ": " + stderr.String())
 		return err
 	}
 
@@ -73,19 +81,14 @@ func clearOldRule(tableId int) error {
 
 // ConfigureRoute used to add route for every IP address.
 // So that, we can choose IP on the go while making request.
-func ConfigureRoute() {
-	// Get all the IP address
+func ConfigureRoute(lips []LocalIPAddr) {
 	// For each, Create Route
-	lips, e := GetLocalIPs()
-	if e != nil {
-		logger.LogError("ConfigureRoute: " + e.Error())
-		return
-	}
 	for i, lip := range lips {
-		logger.LogDebug("Configuring route for " + lip.IP + "" + lip.Gateway)
+		logger.LogDebug("Configuring route for " + lip.IP.String() + "" +
+			lip.Gateway.String())
 		e := CreateOrUpdateRoute(i, lip.IP, lip.Gateway)
 		if e != nil {
-			logger.LogError(e.Error())
+			logger.LogError("RouteConfig: " + e.Error())
 		}
 	}
 

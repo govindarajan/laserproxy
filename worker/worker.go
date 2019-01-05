@@ -122,8 +122,8 @@ func getOutgoingRoute() string {
 		logger.LogDebug("no stats for ips found")
 		ips, _ := helper.GetLocalIPs()
 		r := ips[rand.Intn(len(ips))]
-		logger.LogDebug("Outbound Route:" + r.IP)
-		return r.IP
+		logger.LogDebug("Outbound Route:" + r.IP.String())
+		return r.IP.String()
 	}
 	logger.LogDebug("Outbound Route:" + results.Interfaces[0])
 

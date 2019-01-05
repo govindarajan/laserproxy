@@ -13,7 +13,7 @@ const (
 	LRStShunned LRStatus = "SHUNNED"
 )
 
-type LocalRoutes struct {
+type LocalRoute struct {
 	Interface     string
 	IP            net.IP
 	Gateway       net.IP
@@ -23,9 +23,9 @@ type LocalRoutes struct {
 	Status        LRStatus
 }
 
-func InitLocalRoutes(db *sql.DB) error {
+func InitLocalRoute(db *sql.DB) error {
 	sqlStmt := `
-	CREATE TABLE IF NOT EXISTS LocalRoutes (
+	CREATE TABLE IF NOT EXISTS LocalRoute (
 	Interface VARCHAR NOT NULL, IP VARCHAR NOT NULL, Gateway VARCHAR NOT NULL, 
 	CheckURL VARCHAR, CheckInterval INT NOT NULL DEFAULT 0,
 	Weight INT CHECK (Weight >= 0) NOT NULL DEFAULT 1,
@@ -39,11 +39,11 @@ func InitLocalRoutes(db *sql.DB) error {
 	return nil
 }
 
-func WriteLocalRoutes(db *sql.DB, lr *LocalRoutes) error {
+func WriteLocalRoute(db *sql.DB, lr *LocalRoute) error {
 	if lr == nil {
 		return errors.New("Empty LR values are given")
 	}
-	stmt, err := db.Prepare("REPLACE INTO LocalRoutes (Interface, IP, Gateway, CheckURL, CheckInterval, Weight) VALUES (?, ?, ?, ?, ?, ?)")
+	stmt, err := db.Prepare("REPLACE INTO LocalRoute (Interface, IP, Gateway, CheckURL, CheckInterval, Weight) VALUES (?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}
@@ -51,15 +51,27 @@ func WriteLocalRoutes(db *sql.DB, lr *LocalRoutes) error {
 	return err
 }
 
-func ReadLocalRoutes(db *sql.DB) ([]LocalRoutes, error) {
-	rows, err := db.Query("SELECT Interface, IP, Gateway, CheckURL, CheckInterval, Weight, Status FROM LocalRoutes")
+func DeleteLocalRoute(db *sql.DB, lr *LocalRoute) error {
+	if lr == nil {
+		return errors.New("Empty LR values are given")
+	}
+	stmt, err := db.Prepare("DELETE FROM LocalRoute WHERE Interface = ? AND IP = ? AND Gateway = ?")
+	if err != nil {
+		return err
+	}
+	_, err = stmt.Exec(lr.Interface, lr.IP, lr.Gateway)
+	return err
+}
+
+func ReadLocalRoutes(db *sql.DB) ([]LocalRoute, error) {
+	rows, err := db.Query("SELECT Interface, IP, Gateway, CheckURL, CheckInterval, Weight, Status FROM LocalRoute")
 	if err != nil {
 		return nil, err
 	}
 
-	var lrs []LocalRoutes
+	var lrs []LocalRoute
 	for rows.Next() {
-		var lr LocalRoutes
+		var lr LocalRoute
 		rows.Scan(&lr.Interface, &lr.IP, &lr.Gateway, &lr.CheckURL, &lr.CheckInterval, &lr.Weight, &lr.Status)
 		lrs = append(lrs, lr)
 	}

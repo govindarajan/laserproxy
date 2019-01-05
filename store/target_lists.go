@@ -13,9 +13,12 @@ type TargetLists struct {
 }
 
 func InitTargetLists(db *sql.DB) error {
-	stmt := `CREATE TABLE IF NOT EXISTS TargetLists (Hostname VARCHAR NOT NULL, IP VARCHAR NOT NULL,
-		Score INT NOT NULL DEFAULT 0, KEY (hostname) );
-		`
+	stmt := `
+	CREATE TABLE IF NOT EXISTS TargetLists (
+	Hostname VARCHAR NOT NULL, IP VARCHAR NOT NULL,
+	Score INT NOT NULL DEFAULT 0);
+	CREATE INDEX targetlist_hostname ON TargetLists(Hostname);
+	`
 	_, err := db.Exec(stmt)
 	if err != nil {
 		return err
@@ -27,7 +30,7 @@ func WriteTargetLists(db *sql.DB, t *TargetLists) error {
 	if t == nil {
 		return errors.New("Empty target values are given")
 	}
-	stmt, err := db.Prepare("REPLACE INTO Targets (Hostname, IP, Score) VALUES (?, ?, ?, ?)")
+	stmt, err := db.Prepare("REPLACE INTO Targets (Hostname, IP, Score) VALUES (?, ?, ?)")
 	if err != nil {
 		return err
 	}
