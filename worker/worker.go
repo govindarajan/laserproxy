@@ -10,9 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/govindarajan/laserproxy/helper"
 	"github.com/govindarajan/laserproxy/logger"
-	"github.com/govindarajan/laserproxy/monitor"
 	"github.com/govindarajan/laserproxy/store"
 )
 
@@ -112,22 +110,30 @@ func StartProxy() {
 
 func getOutgoingRoute() string {
 	// TODO: Based on the config, return best route or wighet based route.
-	m, err := monitor.NewMonitor()
-	if err != nil {
-		logger.LogCritical("unable to do healthchecks")
-	}
-	m.Run()
-	results, err := monitor.GetMonitorResults()
-	if err != nil {
-		logger.LogDebug("no stats for ips found")
-		ips, _ := helper.GetLocalIPs()
-		r := ips[rand.Intn(len(ips))]
-		logger.LogDebug("Outbound Route:" + r.IP.String())
-		return r.IP.String()
-	}
-	logger.LogDebug("Outbound Route:" + results.Interfaces[0])
+	// m, err := monitor.NewMonitor()
+	// if err != nil {
+	// 	logger.LogCritical("unable to do healthchecks")
+	// }
+	// m.Run()
+	// results, err := monitor.GetMonitorResults()
+	// if err != nil {
+	// 	logger.LogDebug("no stats for ips found")
+	// 	ips, _ := helper.GetLocalIPs()
+	// 	r := ips[rand.Intn(len(ips))]
+	// 	logger.LogDebug("Outbound Route:" + r.IP.String())
+	// 	return r.IP.String()
+	// }
+	// logger.LogDebug("Outbound Route:" + results.Interfaces[0])
 
-	return results.Interfaces[0]
+	// return results.Interfaces[0]
+
+	lrs, err := store.ReadLocalRoutes(maindb)
+	if err != nil {
+		logger.LogError("GetOBRoute: " + err.Error())
+		return ""
+	}
+	route := lrs[rand.Intn(len(lrs))]
+	return route.IP.String()
 }
 
 func getTargetIPIfAny(host string) *string {

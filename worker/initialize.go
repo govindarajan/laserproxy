@@ -37,7 +37,7 @@ func checkAndUpdateIPChange() {
 		logger.LogError("Update LocalIP Err:" + err.Error())
 	}
 	// TODO: Get this from config.
-	interval := 5
+	interval := 2
 	go helper.WatchNetworkChange(interval, changed)
 	for {
 		logger.LogInfo("Waiting for Network change")
@@ -64,6 +64,10 @@ func updateLocalIP() error {
 	}
 
 	for _, IP := range IPs {
+		if inExisting(IP, existingIPs) {
+			continue
+		}
+
 		lr := &store.LocalRoute{
 			Interface: IP.IFace,
 			IP:        IP.IP,
@@ -82,6 +86,16 @@ func updateLocalIP() error {
 		}
 	}
 	return nil
+}
+
+func inExisting(cIP helper.LocalIPAddr, existing []store.LocalRoute) bool {
+	for _, eIP := range existing {
+		if cIP.IP.Equal(eIP.IP) && cIP.Gateway.Equal(eIP.Gateway) &&
+			cIP.IFace == eIP.Interface {
+			return true
+		}
+	}
+	return false
 }
 
 func findStaleRoutes(existing []store.LocalRoute, cur []helper.LocalIPAddr) []store.LocalRoute {
