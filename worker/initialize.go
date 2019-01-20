@@ -2,6 +2,7 @@ package worker
 
 import (
 	"database/sql"
+	"net/http"
 	"os"
 
 	"github.com/govindarajan/laserproxy/helper"
@@ -10,9 +11,11 @@ import (
 )
 
 var maindb *sql.DB
+var frontends map[int]*http.Server
 
 // Initialize used to initialize requirements for proxy.
 func Initialize() {
+	frontends = make(map[int]*http.Server)
 	initDB()
 	// Local IP checker
 	go checkAndUpdateIPChange()

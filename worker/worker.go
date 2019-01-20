@@ -7,6 +7,9 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
@@ -52,7 +55,7 @@ func getTransport(ip string) http.RoundTripper {
 	return trans
 }
 
-func handleHTTP(w http.ResponseWriter, r *http.Request) {
+func handleHTTP(w http.ResponseWriter, r *http.Request, id int) {
 
 	outgoing := getOutgoingRoute()
 	target := getTargetIPIfAny(r.URL.Host)
@@ -96,7 +99,7 @@ func StartProxy() {
 				// TLS:
 
 			} else {
-				handleHTTP(w, r)
+				handleHTTP(w, r, 0)
 			}
 		}),
 		// Disable HTTP/2.
@@ -151,6 +154,76 @@ func StartFrontEnds(db *sql.DB) error {
 	for _, fe := range fes {
 		// Start proxies
 		logger.LogDebug(fe.ListenAddr.String())
+		server, err := startProxy(&fe)
+		if err != nil {
+			continue
+		}
+		frontends[fe.Id] = server
 	}
 	return nil
+}
+
+func startProxy(fe *store.Frontend) (*http.Server, error) {
+	server := &http.Server{
+		Addr: fe.ListenAddr.String() + ":" + strconv.Itoa(fe.Port),
+
+		// Disable HTTP/2.
+		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
+	}
+
+	if fe.Type == store.PrTypeForward {
+		// Forward proxy
+		server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodConnect {
+				// TLS:
+
+			} else {
+				handleHTTP(w, r, fe.Id)
+			}
+		})
+	} else {
+		// Reverse proxy
+		server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handleReverseProxyReq(w, r, fe)
+		})
+	}
+
+	err := server.ListenAndServe()
+	return server, err
+}
+
+func handleReverseProxyReq(w http.ResponseWriter, r *http.Request, fe *store.Frontend) {
+	// get the backends for this frontend
+	bends, err := store.ReadBackends(maindb, fe.Id)
+	if err != nil {
+		logger.LogError("ReverseProxy: Readbackeds " + err.Error())
+		http.Error(w, "", http.StatusServiceUnavailable)
+		return
+	}
+	// choosed the one
+	purl, err := getProxyURL(bends, fe)
+	if err != nil {
+		logger.LogError("ReverseProxy: Readbackeds " + err.Error())
+		http.Error(w, "", http.StatusServiceUnavailable)
+		return
+	}
+	// create reverse proxy.
+	// TODO: Optimize here
+	proxy := httputil.NewSingleHostReverseProxy(purl)
+	// Set the transport to
+	proxy.Transport = getTransport(getOutgoingRoute())
+
+	// Update the headers to allow for SSL redirection
+	r.URL.Host = purl.Host
+	r.URL.Scheme = purl.Scheme
+	r.Header.Set("X-Forwarded-Host", r.Header.Get("Host"))
+	r.Host = purl.Host
+
+	proxy.ServeHTTP(w, r)
+}
+
+func getProxyURL(bends []store.Backend, fe *store.Frontend) (*url.URL, error) {
+	// TODO: Based on the type of frontend route, return a proxy.
+	be := bends[rand.Intn(len(bends))]
+	return url.Parse("http://" + be.Host)
 }

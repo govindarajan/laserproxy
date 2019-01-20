@@ -12,13 +12,13 @@ func InitMainDB(db *sql.DB) error {
 	if db == nil {
 		return errors.New("Something went wrong in MainDB init")
 	}
-	if e := InitFrontends(db); e != nil {
+	if e := InitFrontend(db); e != nil {
 		return e
 	}
 	if e := InitLocalRoute(db); e != nil {
 		return e
 	}
-	if e := InitBackends(db); e != nil {
+	if e := InitBackend(db); e != nil {
 		return e
 	}
 	if e := InitTargets(db); e != nil {
