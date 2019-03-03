@@ -1,15 +1,18 @@
 package monitor
 
 import (
+	"database/sql"
 	"errors"
+	"math/rand"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/govindarajan/laserproxy/helper"
 	"github.com/govindarajan/laserproxy/logger"
+	"github.com/govindarajan/laserproxy/store"
 	pinger "github.com/sparrc/go-ping"
 )
 
@@ -56,21 +59,6 @@ func GetMonitorResults() (result Results, err error) {
 	return Results{Interfaces: []string{fastestlocalIP}, TargetIPs: []string{}}, nil
 }
 
-//package store
-
-func getLocalInterfaces() []string {
-	localIPAddresses, err := helper.GetLocalIPs()
-	if err != nil {
-		logger.LogInfo("No local interface ips found" + err.Error())
-		return nil
-	}
-	var addresses []string
-	for _, ip := range localIPAddresses {
-		addresses = append(addresses, ip.IP.String())
-	}
-	return addresses
-}
-
 func getTargetInterfaces() []string {
 	return []string{"8.8.8.8", "github.com", "8.8.4.4"}
 }
@@ -93,4 +81,84 @@ func GetPingStats(addr string) (*pinger.Statistics, error) {
 	ping.SetPrivileged(true)
 	ping.Run()
 	return ping.Statistics(), nil
+}
+
+type HealthyBackends struct {
+	totalWeight int
+	backends    []store.Backend
+}
+
+var healthyhosts map[int]HealthyBackends
+var lock sync.RWMutex
+
+func Init() {
+	healthyhosts = make(map[int]HealthyBackends)
+	rand.Seed(time.Now().UTC().UnixNano())
+}
+
+func DoHealthCheck(db *sql.DB) error {
+	fends, err := store.ReadFrontends(db)
+	if err != nil {
+		return err
+	}
+
+	for _, fe := range fends {
+
+		logger.LogDebug(strconv.Itoa(fe.Id))
+		// // get the backends for this frontend
+		// bends, err = store.ReadBackends(db, fe.Id)
+		// if err != nil {
+		// 	logger.LogError("While getting backend for FE:" + strconv.Itoa(fe.Id))
+		// 	continue
+		// }
+
+	}
+	return nil
+}
+
+// GetHealthyBackends used to get the ordered list of
+// backend servers for a given frontend.
+func GetHealthyBackends(db *sql.DB, fe *store.Frontend) []store.Backend {
+
+	lock.RLock()
+	hHost, ok := healthyhosts[fe.Id]
+	lock.RUnlock()
+	if !ok {
+		return nil
+	}
+	switch fe.Balance {
+	case store.BEST:
+		return hHost.backends
+	default:
+		// Weight based. Order it based on weight.
+		// should we suffle array???
+		return orderByWeight(hHost)
+	}
+
+}
+
+func orderByWeight(hHosts HealthyBackends) []store.Backend {
+	if hHosts.totalWeight <= 0 {
+		logger.LogDebug("Weight is 0")
+		return nil
+	}
+	var res []store.Backend
+	rand := randInt(1, hHosts.totalWeight+1)
+	curMin := 1
+	for i, be := range hHosts.backends {
+		curMax := curMin + be.Weight - 1
+		if rand >= curMin && rand <= curMax {
+			res = append(res, be)
+			res = append(res, hHosts.backends[:i]...)
+			res = append(res, hHosts.backends[i+1:]...)
+			break
+		} else {
+			curMin += be.Weight
+		}
+	}
+	return res
+}
+
+func randInt(min int, max int) int {
+	return min + rand.Intn(max-min)
 }

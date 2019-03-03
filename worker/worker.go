@@ -109,27 +109,11 @@ func StartProxy() {
 	if e := server.ListenAndServe(); e != nil {
 		logger.LogError(e.Error())
 	}
+	logger.LogInfo("Starting Frontends")
+	StartFrontEnds(maindb)
 }
 
 func getOutgoingRoute() string {
-	// TODO: Based on the config, return best route or wighet based route.
-	// m, err := monitor.NewMonitor()
-	// if err != nil {
-	// 	logger.LogCritical("unable to do healthchecks")
-	// }
-	// m.Run()
-	// results, err := monitor.GetMonitorResults()
-	// if err != nil {
-	// 	logger.LogDebug("no stats for ips found")
-	// 	ips, _ := helper.GetLocalIPs()
-	// 	r := ips[rand.Intn(len(ips))]
-	// 	logger.LogDebug("Outbound Route:" + r.IP.String())
-	// 	return r.IP.String()
-	// }
-	// logger.LogDebug("Outbound Route:" + results.Interfaces[0])
-
-	// return results.Interfaces[0]
-
 	lrs, err := store.ReadLocalRoutes(maindb)
 	if err != nil {
 		logger.LogError("GetOBRoute: " + err.Error())
@@ -201,6 +185,7 @@ func handleReverseProxyReq(w http.ResponseWriter, r *http.Request, fe *store.Fro
 		return
 	}
 	// choosed the one
+	// TODO: Retry via all other routes if one failed
 	purl, err := getProxyURL(bends, fe)
 	if err != nil {
 		logger.LogError("ReverseProxy: Readbackeds " + err.Error())
