@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/govindarajan/laserproxy/logger"
+	"github.com/govindarajan/laserproxy/monitor"
 	"github.com/govindarajan/laserproxy/store"
 )
 
@@ -177,38 +178,28 @@ func startProxy(fe *store.Frontend) (*http.Server, error) {
 }
 
 func handleReverseProxyReq(w http.ResponseWriter, r *http.Request, fe *store.Frontend) {
-	// get the backends for this frontend
-	bends, err := store.ReadBackends(maindb, fe.Id)
-	if err != nil {
-		logger.LogError("ReverseProxy: Readbackeds " + err.Error())
-		http.Error(w, "", http.StatusServiceUnavailable)
-		return
+	bends := monitor.GetHealthyBackends(maindb, fe)
+	for _, be := range bends {
+		purl, err := url.Parse("http://" + be.Host)
+		if err != nil {
+			logger.LogError("ReverseProxy: Readbackeds " + err.Error())
+			http.Error(w, "", http.StatusServiceUnavailable)
+			continue
+		}
+		// create reverse proxy.
+		// TODO: Optimize here
+		proxy := httputil.NewSingleHostReverseProxy(purl)
+		// Set the transport to
+		proxy.Transport = getTransport(getOutgoingRoute())
+
+		// Update the headers to allow for SSL redirection
+		r.URL.Host = purl.Host
+		r.URL.Scheme = purl.Scheme
+		r.Header.Set("X-Forwarded-Host", r.Header.Get("Host"))
+		r.Host = purl.Host
+
+		proxy.ServeHTTP(w, r)
+		// TODO: Should we retry on 5xx???
+		break
 	}
-	// choosed the one
-	// TODO: Retry via all other routes if one failed
-	purl, err := getProxyURL(bends, fe)
-	if err != nil {
-		logger.LogError("ReverseProxy: Readbackeds " + err.Error())
-		http.Error(w, "", http.StatusServiceUnavailable)
-		return
-	}
-	// create reverse proxy.
-	// TODO: Optimize here
-	proxy := httputil.NewSingleHostReverseProxy(purl)
-	// Set the transport to
-	proxy.Transport = getTransport(getOutgoingRoute())
-
-	// Update the headers to allow for SSL redirection
-	r.URL.Host = purl.Host
-	r.URL.Scheme = purl.Scheme
-	r.Header.Set("X-Forwarded-Host", r.Header.Get("Host"))
-	r.Host = purl.Host
-
-	proxy.ServeHTTP(w, r)
-}
-
-func getProxyURL(bends []store.Backend, fe *store.Frontend) (*url.URL, error) {
-	// TODO: Based on the type of frontend route, return a proxy.
-	be := bends[rand.Intn(len(bends))]
-	return url.Parse("http://" + be.Host)
 }
