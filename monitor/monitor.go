@@ -16,23 +16,8 @@ import (
 	pinger "github.com/sparrc/go-ping"
 )
 
-var statsChan chan *pinger.Statistics
-var localIfc map[string]bool
-var fastestlocalIP string
-
-//Monitor contains monitor funcs and properties
-type Monitor struct {
-	wtGroup sync.WaitGroup
-	done    chan bool
-}
-
-//NewMonitor returns Monitor object
-func NewMonitor() (*Monitor, error) {
-	return &Monitor{done: make(chan bool)}, nil
-}
-
 //Schedule runs Run() on the intreval seconds passed
-func (m *Monitor) Schedule(seconds int) {
+func Schedule(seconds int) {
 	interval := time.NewTicker(time.Duration(seconds))
 	osChan := make(chan os.Signal, 1)
 	signal.Notify(osChan, os.Interrupt)
@@ -43,24 +28,11 @@ func (m *Monitor) Schedule(seconds int) {
 		case <-interval.C:
 			// TODO: Schedule check
 		case <-osChan:
-			close(m.done)
-			return
-		case <-m.done:
-			m.wtGroup.Wait()
+			// TODO: graceful shutdown of monitor
 			return
 
 		}
 	}
-}
-
-//GetMonitorResults returns the monitor statistics
-func GetMonitorResults() (result Results, err error) {
-
-	return Results{Interfaces: []string{fastestlocalIP}, TargetIPs: []string{}}, nil
-}
-
-func getTargetInterfaces() []string {
-	return []string{"8.8.8.8", "github.com", "8.8.4.4"}
 }
 
 const PACKET_COUNT = 10
