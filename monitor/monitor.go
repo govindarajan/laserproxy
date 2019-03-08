@@ -55,16 +55,11 @@ func GetPingStats(addr string) (*pinger.Statistics, error) {
 	return ping.Statistics(), nil
 }
 
-type HealthyBackends struct {
-	totalWeight int
-	backends    []store.Backend
-}
-
-var healthyhosts map[int]HealthyBackends
-var lock sync.RWMutex
+var healthyhostsWeight map[int][]store.Backend
+var healthyhostsWeightLock sync.RWMutex
 
 func Init() {
-	healthyhosts = make(map[int]HealthyBackends)
+	healthyhostsWeight = make(map[int][]store.Backend)
 	rand.Seed(time.Now().UTC().UnixNano())
 }
 
@@ -88,49 +83,26 @@ func DoHealthCheck(db *sql.DB) error {
 	return nil
 }
 
-// GetHealthyBackends used to get the ordered list of
-// backend servers for a given frontend.
-func GetHealthyBackends(db *sql.DB, fe *store.Frontend) []store.Backend {
+// GetHealthChecker used to get the HealthChecker interface
+func GetHealthChecker(db *sql.DB, fe *store.Frontend) HealthChecker {
 
-	lock.RLock()
-	hHost, ok := healthyhosts[fe.Id]
-	lock.RUnlock()
-	if !ok {
-		return nil
-	}
+	var checker HealthChecker
+
 	switch fe.Balance {
 	case store.BEST:
-		return hHost.backends
+		//return hHost.backends
 	default:
 		// Weight based. Order it based on weight.
-		// should we suffle array???
-		return orderByWeight(hHost)
-	}
-
-}
-
-func orderByWeight(hHosts HealthyBackends) []store.Backend {
-	if hHosts.totalWeight <= 0 {
-		logger.LogDebug("Weight is 0")
-		return nil
-	}
-	var res []store.Backend
-	rand := randInt(1, hHosts.totalWeight+1)
-	curMin := 1
-	for i, be := range hHosts.backends {
-		curMax := curMin + be.Weight - 1
-		if rand >= curMin && rand <= curMax {
-			res = append(res, be)
-			res = append(res, hHosts.backends[:i]...)
-			res = append(res, hHosts.backends[i+1:]...)
-			break
-		} else {
-			curMin += be.Weight
+		healthyhostsWeightLock.RLock()
+		hHosts, ok := healthyhostsWeight[fe.Id]
+		healthyhostsWeightLock.RUnlock()
+		if !ok {
+			return nil
 		}
+		checker = &WeightBased{}
+		// Should we suffle array???
+		checker.Init(hHosts)
 	}
-	return res
-}
 
-func randInt(min int, max int) int {
-	return min + rand.Intn(max-min)
+	return checker
 }

@@ -178,8 +178,18 @@ func startProxy(fe *store.Frontend) (*http.Server, error) {
 }
 
 func handleReverseProxyReq(w http.ResponseWriter, r *http.Request, fe *store.Frontend) {
-	bends := monitor.GetHealthyBackends(maindb, fe)
-	for _, be := range bends {
+	bends := monitor.GetHealthChecker(maindb, fe)
+	if bends == nil {
+		logger.LogError("ReverseProxy: No backend available")
+		http.Error(w, "", http.StatusServiceUnavailable)
+	}
+	for {
+		be := bends.GetNext()
+		if be == nil {
+			logger.LogError("ReverseProxy: All backends are tried?")
+			http.Error(w, "", http.StatusServiceUnavailable)
+			break
+		}
 		purl, err := url.Parse("http://" + be.Host)
 		if err != nil {
 			logger.LogError("ReverseProxy: Readbackeds " + err.Error())
