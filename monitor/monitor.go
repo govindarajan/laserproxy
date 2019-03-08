@@ -2,7 +2,6 @@ package monitor
 
 import (
 	"database/sql"
-	"errors"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/govindarajan/laserproxy/logger"
 	"github.com/govindarajan/laserproxy/store"
-	pinger "github.com/sparrc/go-ping"
 )
 
 //Schedule runs Run() on the intreval seconds passed
@@ -33,26 +31,6 @@ func Schedule(seconds int) {
 
 		}
 	}
-}
-
-const PACKET_COUNT = 10
-const TIMEOUT_IN_SEC = 2
-const INTERVAL_IN_MS = 100
-
-func GetPingStats(addr string) (*pinger.Statistics, error) {
-	if addr == "" {
-		return nil, errors.New("Address is empty")
-	}
-	ping, err := pinger.NewPinger(addr)
-	if err != nil {
-		return nil, err
-	}
-	ping.Count = PACKET_COUNT
-	ping.Interval = INTERVAL_IN_MS * time.Millisecond
-	ping.Timeout = TIMEOUT_IN_SEC * time.Second
-	ping.SetPrivileged(true)
-	ping.Run()
-	return ping.Statistics(), nil
 }
 
 var healthyhostsWeight map[int][]store.Backend
