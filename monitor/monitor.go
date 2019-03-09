@@ -35,9 +35,15 @@ func Schedule(seconds int) {
 
 var healthyhostsWeight map[int][]store.Backend
 var healthyhostsWeightLock sync.RWMutex
+var healthyhostsBest map[int][]CheckResult
+var healthyhostsBestLock sync.RWMutex
+var chanCheckResult chan CheckResult
 
 func Init() {
 	healthyhostsWeight = make(map[int][]store.Backend)
+	healthyhostsBest = make(map[int][]CheckResult)
+	chanCheckResult = make(chan CheckResult, 10)
+	go processCheckResult(chanCheckResult)
 	rand.Seed(time.Now().UTC().UnixNano())
 }
 
@@ -68,7 +74,14 @@ func GetHealthChecker(db *sql.DB, fe *store.Frontend) HealthChecker {
 
 	switch fe.Balance {
 	case store.BEST:
-		//return hHost.backends
+		healthyhostsBestLock.RLock()
+		checkRes, ok := healthyhostsBest[fe.Id]
+		healthyhostsBestLock.RUnlock()
+		if !ok {
+			return nil
+		}
+		checker = &BestRoute{}
+		checker.Init(checkRes)
 	default:
 		// Weight based. Order it based on weight.
 		healthyhostsWeightLock.RLock()

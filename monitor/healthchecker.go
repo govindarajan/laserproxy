@@ -8,7 +8,7 @@ import (
 )
 
 type HealthChecker interface {
-	Init([]store.Backend)
+	Init(interface{})
 	GetNext() *store.Backend
 }
 
@@ -26,10 +26,14 @@ func (r *WeightBased) GetNext() *store.Backend {
 	return &be
 }
 
-func (r *WeightBased) Init(bes []store.Backend) {
-	r.backends = bes
+func (r *WeightBased) Init(val interface{}) {
+	var ok bool
+	if r.backends, ok = val.([]store.Backend); !ok {
+		logger.LogError("Conversion to []Backend failed")
+	}
+
 	weight := 0
-	for _, be := range bes {
+	for _, be := range r.backends {
 		weight += be.Weight
 	}
 	r.totalWeight = weight

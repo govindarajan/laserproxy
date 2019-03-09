@@ -1,12 +1,34 @@
 package monitor
 
 import (
+	"container/heap"
 	"errors"
 	"time"
 
+	"github.com/govindarajan/laserproxy/logger"
 	"github.com/govindarajan/laserproxy/store"
 	pinger "github.com/sparrc/go-ping"
 )
+
+type BestRoute struct {
+	res CheckHeap
+}
+
+func (br *BestRoute) Init(val interface{}) {
+	var ok bool
+	if br.res, ok = val.([]CheckResult); !ok {
+		logger.LogError("Conversion to []Backend failed")
+	}
+	heap.Init(&br.res)
+}
+
+func (br *BestRoute) GetNext() *store.Backend {
+	val := heap.Pop(&br.res)
+	if val == nil {
+		return nil
+	}
+	return val.(CheckResult).be
+}
 
 type CheckResult struct {
 	be   *store.Backend
@@ -62,4 +84,8 @@ func GetPingStats(addr string) (*pinger.Statistics, error) {
 	ping.SetPrivileged(true)
 	ping.Run()
 	return ping.Statistics(), nil
+}
+
+func processCheckResult(chanCheckResult chan CheckResult) {
+
 }
