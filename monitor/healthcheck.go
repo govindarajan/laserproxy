@@ -42,7 +42,7 @@ func (ch CheckHeap) Len() int {
 }
 
 func (ch CheckHeap) Less(i, j int) bool {
-	// TODO: use other parameters also.
+	// TODO: use other parameters(like RTT) also.
 	return ch[i].ping.PacketLoss < ch[j].ping.PacketLoss
 }
 
@@ -84,8 +84,4 @@ func GetPingStats(addr string) (*pinger.Statistics, error) {
 	ping.SetPrivileged(true)
 	ping.Run()
 	return ping.Statistics(), nil
-}
-
-func processCheckResult(chanCheckResult chan CheckResult) {
-
 }

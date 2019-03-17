@@ -10,6 +10,7 @@ type ProxyStatus string
 const (
 	PrStOnline  ProxyStatus = "ONLINE"
 	PrStShunned ProxyStatus = "SHUNNED"
+	PrStOffline ProxyStatus = "OFFLINE"
 )
 
 type Backend struct {
@@ -26,7 +27,7 @@ func InitBackend(db *sql.DB) error {
 	stmt := `CREATE TABLE IF NOT EXISTS Backend (GroupId INT NOT NULL DEFAULT 0, 
 		Host VARCHAR NOT NULL ,  CheckURL VARCHAR, 
 		CheckInterval INT NOT NULL DEFAULT 0,  Weight INT CHECK (Weight >= 0) NOT NULL DEFAULT 1,
-		Status VARCHAR CHECK (UPPER(Status) IN ('ONLINE','SHUNNED')) NOT NULL DEFAULT 'ONLINE',
+		Status VARCHAR CHECK (UPPER(Status) IN ('ONLINE','SHUNNED','OFFLINE')) NOT NULL DEFAULT 'ONLINE',
 		MaxRequests INT CHECK (MaxRequests >=0) NOT NULL DEFAULT 100, 
 		PRIMARY KEY (GroupId, Host) );
 		`
@@ -49,9 +50,26 @@ func WriteBackend(db *sql.DB, be *Backend) error {
 	return err
 }
 
-// ReadBackends used to read all the front ends from given DB
+// ReadBackends used to read all the backends from given frontend id
 func ReadBackends(db *sql.DB, gID int) ([]Backend, error) {
 	rows, err := db.Query("SELECT GroupId, Host, CheckURL, CheckInterval, Weight, MaxRequests FROM Backend WHERE GroupId = ?", gID)
+	if err != nil {
+		return nil, err
+	}
+
+	var res []Backend
+	for rows.Next() {
+		var be Backend
+		rows.Scan(&be.GroupId, &be.Host, &be.CheckURL, &be.CheckInterval,
+			&be.Weight, &be.MaxRequests)
+		res = append(res, be)
+	}
+	return res, nil
+}
+
+// ReadAllBackends used to read all the backends from given DB
+func ReadAllBackends(db *sql.DB) ([]Backend, error) {
+	rows, err := db.Query("SELECT GroupId, Host, CheckURL, CheckInterval, Weight, MaxRequests FROM Backend")
 	if err != nil {
 		return nil, err
 	}

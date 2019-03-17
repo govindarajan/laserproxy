@@ -7,6 +7,7 @@ import (
 
 	"github.com/govindarajan/laserproxy/helper"
 	"github.com/govindarajan/laserproxy/logger"
+	"github.com/govindarajan/laserproxy/monitor"
 	"github.com/govindarajan/laserproxy/store"
 )
 
@@ -19,6 +20,8 @@ func Initialize() {
 	initDB()
 	// Local IP checker
 	go checkAndUpdateIPChange()
+	// Initialize monitor.
+	go monitor.Init(maindb)
 }
 
 func initDB() {
