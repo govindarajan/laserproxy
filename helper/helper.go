@@ -14,7 +14,8 @@ type LocalIPAddr struct {
 	Gateway string
 }
 
-//GetLocalIPs returns various interface ips for the hostname passed
+// GetLocalIPs returns various interface ips which are configured in
+// given host
 // TODO: Get it from cache
 func GetLocalIPs() ([]LocalIPAddr, error) {
 	LIPs := make([]LocalIPAddr, 0)
