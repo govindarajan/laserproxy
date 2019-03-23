@@ -1,156 +1,133 @@
 package monitor
 
 import (
-	"fmt"
-	"log"
-	"net"
+	"database/sql"
+	"math/rand"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/govindarajan/laserproxy/helper"
 	"github.com/govindarajan/laserproxy/logger"
-	"github.com/govindarajan/laserproxy/pinger"
+	"github.com/govindarajan/laserproxy/store"
 )
 
-var statsChan chan *pinger.Statistics
-var localIfc map[string]bool
-var fastestlocalIP string
+var healthyHosts map[int][]CheckResult
+var healthyHostsLock sync.RWMutex
+var chanCheckResult chan CheckResult
 
-//Monitor contains monitor funcs and properties
-type Monitor struct {
-	wtGroup sync.WaitGroup
-	done    chan bool
+func Init(db *sql.DB) {
+	healthyHosts = make(map[int][]CheckResult)
+	chanCheckResult = make(chan CheckResult, 10)
+	go processCheckResult(chanCheckResult)
+	rand.Seed(time.Now().UTC().UnixNano())
+	Schedule(db)
 }
 
-//NewMonitor returns Monitor object
-func NewMonitor() (*Monitor, error) {
-	return &Monitor{done: make(chan bool)}, nil
+// GetHealthChecker used to get the HealthChecker interface
+func GetHealthChecker(db *sql.DB, fe *store.Frontend) HealthChecker {
+
+	var checker HealthChecker
+
+	healthyHostsLock.RLock()
+	checkRes, ok := healthyHosts[fe.Id]
+	healthyHostsLock.RUnlock()
+	if !ok {
+		return nil
+	}
+	switch fe.Balance {
+	case store.BEST:
+		checker = &BestRoute{}
+	default:
+		// Weight based. Order it based on weight.
+		checker = &WeightBased{}
+		// Should we suffle array???
+	}
+	checker.Init(checkRes)
+
+	return checker
 }
 
-//Schedule runs Run() on the intreval seconds passed
-func (m *Monitor) Schedule(seconds int) {
-	interval := time.NewTicker(time.Duration(seconds))
+func Schedule(db *sql.DB) {
+	interval := time.NewTicker(time.Second)
 	osChan := make(chan os.Signal, 1)
 	signal.Notify(osChan, os.Interrupt)
 	signal.Notify(osChan, syscall.SIGTERM)
 
 	for {
 		select {
-		case <-interval.C:
-			m.Run()
+		case t := <-interval.C:
+			ScheduleInternal(db, t.Unix())
 		case <-osChan:
-			close(m.done)
-			return
-		case <-m.done:
-			m.wtGroup.Wait()
+			// TODO: graceful shutdown of monitor
 			return
 
 		}
 	}
 }
 
-//GetMonitorResults returns the monitor statistics
-func GetMonitorResults() (result Results, err error) {
+func ScheduleInternal(db *sql.DB, now int64) {
 
-	return Results{Interfaces: []string{fastestlocalIP}, TargetIPs: []string{}}, nil
-}
-
-func (m *Monitor) collectResults() {
-	minPktLoss := 1000.00
-	defer m.wtGroup.Done()
-	for stat := range statsChan {
-		if _, ok := localIfc[stat.Addr]; ok {
-			//this is a local interface
-			if stat.PacketsLoss < minPktLoss {
-				minPktLoss = stat.PacketsLoss
-				fastestlocalIP = stat.Addr
-			}
-		}
-		//fmt.Println(stat)
-	}
-	fmt.Println(fastestlocalIP, "is the fastest local IP")
-}
-
-//Run runs the monitors on the interfaces and target ips
-func (m *Monitor) Run() {
-	localIfc = make(map[string]bool)
-	//todo: Get from  package store here
-	localRoutes := getLocalInterfaces()
-	fmt.Println(localRoutes)
-	targetRoutes := getTargetInterfaces()
-	statsChan = make(chan *pinger.Statistics, len(localRoutes)+len(targetRoutes))
-	var wg sync.WaitGroup
-	wg.Add(2)
-	m.wtGroup.Add(1)
-	go m.collectResults()
-	//collect stats  for  local  interface routes
-	//or other gateway routes
-	go func(wtGrp *sync.WaitGroup, routes []string) {
-		defer wtGrp.Done()
-		collectStatistics(routes, true)
-	}(&wg, localRoutes)
-
-	//collect  stats  for  target routes
-	go func(wtGrp *sync.WaitGroup, routes []string) {
-		defer wtGrp.Done()
-		collectStatistics(routes, false)
-	}(&wg, targetRoutes)
-	wg.Wait()
-	close(statsChan)
-	m.wtGroup.Wait()
-
-}
-
-func collectStatistics(routes []string, isLocalInterface bool) {
-	var wg sync.WaitGroup
-	for _, route := range routes {
-		wg.Add(1)
-		go func(wtGrp *sync.WaitGroup, ipRoute string) {
-			defer wtGrp.Done()
-			pong, err := pinger.NewPinger(ipRoute)
-			if err != nil {
-				log.Println("unable to ping ip ", ipRoute)
-				return
-			}
-			if isLocalInterface {
-				pong.Source = ipRoute
-				ipaddr, _ := net.ResolveIPAddr("ip", "8.8.8.8")
-				pong.IPAddr = ipaddr
-				localIfc[ipRoute] = true
-			}
-			pong.Count = 100
-			pong.Timeout = time.Second * 25
-			pong.Interval = time.Second / 100
-			err = pong.Run()
-			if err != nil {
-				log.Println("unable to collect stats for ip ", ipRoute, err)
-				return
-			}
-			stats := pong.Statistics()
-			statsChan <- stats
-		}(&wg, route)
-	}
-	wg.Wait()
-}
-
-//package store
-
-func getLocalInterfaces() []string {
-	localIPAddresses, err := helper.GetLocalIPs()
+	bends, err := store.ReadAllBackends(db)
 	if err != nil {
-		logger.LogInfo("No local interface ips found" + err.Error())
-		return nil
+		logger.LogError("While getting backend: " + err.Error())
+		return
 	}
-	var addresses []string
-	for _, ip := range localIPAddresses {
-		addresses = append(addresses, ip.IP)
+	for _, be := range bends {
+		if be.CheckInterval == 0 {
+			continue
+		}
+		if now%int64(be.CheckInterval) != 0 {
+			// This is not the right time to do check.
+			continue
+		}
+		go doHealthCheck(be, chanCheckResult)
 	}
-	return addresses
+
 }
 
-func getTargetInterfaces() []string {
-	return []string{"8.8.8.8", "github.com", "8.8.4.4"}
+func doHealthCheck(be store.Backend, resChan chan CheckResult) {
+	// TODO: Add url check also.
+	s := strings.Split(be.Host, ":")
+	ip := s[0]
+	pingRes, err := GetPingStats(ip)
+	if err != nil {
+		logger.LogError("Ping error " + err.Error())
+	}
+	checkRes := CheckResult{be: &be, ping: pingRes}
+	resChan <- checkRes
+}
+
+func processCheckResult(chanCheckResult chan CheckResult) {
+	for {
+		// TODO: Add done chan for graceful shutdown
+		res := <-chanCheckResult
+		healthyHostsLock.RLock()
+		checkResults, ok := healthyHosts[res.be.GroupId]
+		healthyHostsLock.RUnlock()
+		if !ok {
+			// First time. Add it to the slice.
+			checkResults = append(checkResults, res)
+		} else {
+			//Replace with existing checkresult
+			checkResults = replaceCheckResult(checkResults, res)
+		}
+		healthyHostsLock.Lock()
+		healthyHosts[res.be.GroupId] = checkResults
+		healthyHostsLock.Unlock()
+	}
+}
+
+func replaceCheckResult(existing []CheckResult, res CheckResult) []CheckResult {
+	var newRes = make([]CheckResult, 0)
+	for _, eRes := range existing {
+		if res.be.Host == eRes.be.Host {
+			newRes = append(newRes, res)
+		} else {
+			newRes = append(newRes, eRes)
+		}
+	}
+	return newRes
 }

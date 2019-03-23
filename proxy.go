@@ -1,15 +1,27 @@
 package main
 
 import (
-	"./helper"
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/govindarajan/laserproxy/logger"
 	"github.com/govindarajan/laserproxy/worker"
 )
 
 func main() {
 	logger.LogInfo("Hello Laser")
-	helper.ConfigureRoute()
+	worker.Initialize()
 
+	go signalCatcher()
 	go worker.StartProxy()
 	select {}
+}
+
+func signalCatcher() {
+	osChan := make(chan os.Signal, 1)
+	signal.Notify(osChan, os.Interrupt, syscall.SIGTERM)
+	<-osChan
+	logger.LogInfo("Got ctrl+C signal")
+	os.Exit(0)
 }

@@ -2,16 +2,20 @@ package worker
 
 import (
 	"crypto/tls"
+	"database/sql"
 	"io"
 	"math/rand"
 	"net"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
-	"github.com/govindarajan/laserproxy/helper"
 	"github.com/govindarajan/laserproxy/logger"
 	"github.com/govindarajan/laserproxy/monitor"
+	"github.com/govindarajan/laserproxy/store"
 )
 
 var transports = make(map[string]http.RoundTripper)
@@ -52,7 +56,7 @@ func getTransport(ip string) http.RoundTripper {
 	return trans
 }
 
-func handleHTTP(w http.ResponseWriter, r *http.Request) {
+func handleHTTP(w http.ResponseWriter, r *http.Request, id int) {
 
 	outgoing := getOutgoingRoute()
 	target := getTargetIPIfAny(r.URL.Host)
@@ -96,7 +100,7 @@ func StartProxy() {
 				// TLS:
 
 			} else {
-				handleHTTP(w, r)
+				handleHTTP(w, r, 0)
 			}
 		}),
 		// Disable HTTP/2.
@@ -106,29 +110,106 @@ func StartProxy() {
 	if e := server.ListenAndServe(); e != nil {
 		logger.LogError(e.Error())
 	}
+	logger.LogInfo("Starting Frontends")
+	StartFrontEnds(maindb)
 }
 
 func getOutgoingRoute() string {
-	// TODO: Based on the config, return best route or wighet based route.
-	m, err := monitor.NewMonitor()
+	lrs, err := store.ReadLocalRoutes(maindb)
 	if err != nil {
-		logger.LogCritical("unable to do healthchecks")
+		logger.LogError("GetOBRoute: " + err.Error())
+		return ""
 	}
-	m.Run()
-	results, err := monitor.GetMonitorResults()
-	if err != nil {
-		logger.LogDebug("no stats for ips found")
-		ips, _ := helper.GetLocalIPs()
-		r := ips[rand.Intn(len(ips))]
-		logger.LogDebug("Outbound Route:" + r.IP)
-		return r.IP
-	}
-	logger.LogDebug("Outbound Route:" + results.Interfaces[0])
-
-	return results.Interfaces[0]
+	route := lrs[rand.Intn(len(lrs))]
+	return route.IP.String()
 }
 
 func getTargetIPIfAny(host string) *string {
 
 	return nil
+}
+
+// StartFrontEnds used to start all the front end proxies
+// by reading the frondends table.
+func StartFrontEnds(db *sql.DB) error {
+	fes, err := store.ReadFrontends(db)
+	if err != nil {
+		return err
+	}
+	for _, fe := range fes {
+		// Start proxies
+		logger.LogDebug(fe.ListenAddr.String())
+		server, err := startProxy(&fe)
+		if err != nil {
+			continue
+		}
+		frontends[fe.Id] = server
+	}
+	return nil
+}
+
+func startProxy(fe *store.Frontend) (*http.Server, error) {
+	server := &http.Server{
+		Addr: fe.ListenAddr.String() + ":" + strconv.Itoa(fe.Port),
+
+		// Disable HTTP/2.
+		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
+	}
+
+	if fe.Type == store.PrTypeForward {
+		// Forward proxy
+		server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodConnect {
+				// TLS:
+
+			} else {
+				handleHTTP(w, r, fe.Id)
+			}
+		})
+	} else {
+		// Reverse proxy
+		server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handleReverseProxyReq(w, r, fe)
+		})
+	}
+
+	err := server.ListenAndServe()
+	return server, err
+}
+
+func handleReverseProxyReq(w http.ResponseWriter, r *http.Request, fe *store.Frontend) {
+	bends := monitor.GetHealthChecker(maindb, fe)
+	if bends == nil {
+		logger.LogError("ReverseProxy: No backend available")
+		http.Error(w, "", http.StatusServiceUnavailable)
+	}
+	for {
+		be := bends.GetNext()
+		if be == nil {
+			logger.LogError("ReverseProxy: All backends are tried?")
+			http.Error(w, "", http.StatusServiceUnavailable)
+			break
+		}
+		purl, err := url.Parse("http://" + be.Host)
+		if err != nil {
+			logger.LogError("ReverseProxy: Readbackeds " + err.Error())
+			http.Error(w, "", http.StatusServiceUnavailable)
+			continue
+		}
+		// create reverse proxy.
+		// TODO: Optimize here
+		proxy := httputil.NewSingleHostReverseProxy(purl)
+		// Set the transport to
+		proxy.Transport = getTransport(getOutgoingRoute())
+
+		// Update the headers to allow for SSL redirection
+		r.URL.Host = purl.Host
+		r.URL.Scheme = purl.Scheme
+		r.Header.Set("X-Forwarded-Host", r.Header.Get("Host"))
+		r.Host = purl.Host
+
+		proxy.ServeHTTP(w, r)
+		// TODO: Should we retry on 5xx???
+		break
+	}
 }
