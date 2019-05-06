@@ -5,6 +5,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/govindarajan/laserproxy/admin"
 	"github.com/govindarajan/laserproxy/logger"
 	"github.com/govindarajan/laserproxy/worker"
 )
@@ -13,6 +14,7 @@ func main() {
 	logger.LogInfo("Hello Laser")
 	worker.Initialize()
 
+	go admin.StartAdminServer()
 	go signalCatcher()
 	go worker.StartProxy()
 	select {}

@@ -32,5 +32,5 @@ func InitMainDB(db *sql.DB) error {
 
 // GetConnection used to get main DB connection.
 func GetConnection() (*sql.DB, error) {
-	return sql.Open("sqlite3", ":memory:")
+	return sql.Open("sqlite3", "file::memory:?mode=memory&cache=shared")
 }

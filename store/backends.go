@@ -56,7 +56,7 @@ func ReadBackends(db *sql.DB, gID int) ([]Backend, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	defer rows.Close()
 	var res []Backend
 	for rows.Next() {
 		var be Backend
@@ -73,6 +73,7 @@ func ReadAllBackends(db *sql.DB) ([]Backend, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
 	var res []Backend
 	for rows.Next() {

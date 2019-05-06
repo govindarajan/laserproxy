@@ -68,7 +68,7 @@ func ReadLocalRoutes(db *sql.DB) ([]LocalRoute, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	defer rows.Close()
 	var lrs []LocalRoute
 	for rows.Next() {
 		var lr LocalRoute

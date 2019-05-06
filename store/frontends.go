@@ -60,7 +60,7 @@ func ReadFrontends(db *sql.DB) ([]Frontend, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	defer rows.Close()
 	var res []Frontend
 	for rows.Next() {
 		var fe Frontend
