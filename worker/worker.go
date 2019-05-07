@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"crypto/tls"
 	"database/sql"
 	"io"
@@ -107,11 +108,12 @@ func StartProxy() {
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 	}
 
+	logger.LogInfo("Starting Frontends")
+	RefreshFrontends(maindb)
+
 	if e := server.ListenAndServe(); e != nil {
 		logger.LogError(e.Error())
 	}
-	logger.LogInfo("Starting Frontends")
-	StartFrontEnds(maindb)
 }
 
 func getOutgoingRoute() string {
@@ -129,26 +131,61 @@ func getTargetIPIfAny(host string) *string {
 	return nil
 }
 
-// StartFrontEnds used to start all the front end proxies
-// by reading the frondends table.
-func StartFrontEnds(db *sql.DB) error {
+func RefreshFrontends(db *sql.DB) error {
 	fes, err := store.ReadFrontends(db)
 	if err != nil {
 		return err
 	}
-	for _, fe := range fes {
-		// Start proxies
-		logger.LogDebug(fe.ListenAddr.String())
-		server, err := startProxy(&fe)
-		if err != nil {
-			continue
-		}
-		frontends[fe.Id] = server
-	}
+	startFrontEnds(fes)
+	cleanupFrontends(fes, &frontends)
 	return nil
 }
 
-func startProxy(fe *store.Frontend) (*http.Server, error) {
+// StartFrontEnds used to start all the front end proxies
+// by reading the frondends table.
+func startFrontEnds(fes []store.Frontend) {
+
+	for _, fe := range fes {
+		// Start proxies
+		if _, ok := frontends[fe.Id]; ok {
+			// Server already started.
+			continue
+		}
+		logger.LogInfo("Starting FE " + fe.ListenAddr.String() + strconv.Itoa(fe.Port))
+		server := startProxy(&fe)
+		frontends[fe.Id] = server
+	}
+
+}
+
+// CleanupFrontends used to stop the servers which are no longer present
+// in frontend table.
+func cleanupFrontends(fes []store.Frontend, feFromLive *map[int]*http.Server) {
+	for i, server := range *feFromLive {
+		if isIdFound(i, fes) {
+			// Nothing to do. Already found
+			continue
+		}
+		ctx, _ := context.WithTimeout(context.Background(), 2*time.Second)
+		if err := server.Shutdown(ctx); err != nil {
+			logger.LogError("Failed to shutdown server:" + err.Error())
+		} else {
+			delete(*feFromLive, i)
+		}
+
+	}
+}
+
+func isIdFound(id int, fes []store.Frontend) bool {
+	for _, fe := range fes {
+		if id == fe.Id {
+			return true
+		}
+	}
+	return false
+}
+
+func startProxy(fe *store.Frontend) *http.Server {
 	server := &http.Server{
 		Addr: fe.ListenAddr.String() + ":" + strconv.Itoa(fe.Port),
 
@@ -173,8 +210,12 @@ func startProxy(fe *store.Frontend) (*http.Server, error) {
 		})
 	}
 
-	err := server.ListenAndServe()
-	return server, err
+	go func() {
+		err := server.ListenAndServe()
+		logger.LogError("Server error: " + err.Error())
+	}()
+
+	return server
 }
 
 func handleReverseProxyReq(w http.ResponseWriter, r *http.Request, fe *store.Frontend) {

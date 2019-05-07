@@ -65,6 +65,8 @@ func ReadFrontends(db *sql.DB) ([]Frontend, error) {
 	for rows.Next() {
 		var fe Frontend
 		rows.Scan(&fe.Id, &fe.ListenAddr, &fe.Port, &fe.Balance, &fe.Type)
+		// HACK: Fix it by overriding Scan
+		fe.ListenAddr = net.ParseIP(string(fe.ListenAddr))
 		res = append(res, fe)
 	}
 	return res, nil

@@ -6,26 +6,38 @@ import (
 	"net"
 	"strings"
 
+	"github.com/govindarajan/laserproxy/logger"
 	"github.com/govindarajan/laserproxy/store"
+	"github.com/govindarajan/laserproxy/worker"
 	"github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/server"
 )
 
 func StartAdminServer() {
 	l, _ := net.Listen("tcp", "127.0.0.1:4000")
-
-	c, _ := l.Accept()
-
-	// Create a connection with user root and an empty password.
-	// You can use your own handler to handle command here.
-	conn, _ := server.NewConn(c, "root", "1", &SQLiteHandler{})
-
+	// TODO: Take it from config
+	adminUser := "someuser"
+	adminPwd := "1"
 	for {
-		err := conn.HandleCommand()
-		if err != nil {
-			fmt.Println(err)
-			break
-		}
+		// Wait for new connection
+		c, _ := l.Accept()
+
+		// Process the connection in thread.
+		go func() {
+			conn, err := server.NewConn(c, adminUser, adminPwd, &SQLiteHandler{})
+			if err != nil || conn == nil {
+				// Wrong pwd??
+				logger.LogWarn(err.Error())
+				return
+			}
+			for {
+				err := conn.HandleCommand()
+				if err != nil {
+					logger.LogInfo(err.Error())
+					break
+				}
+			}
+		}()
 	}
 }
 
@@ -76,8 +88,16 @@ func (h *SQLiteHandler) HandleQuery(query string) (*mysql.Result, error) {
 		if err != nil {
 			return nil, err
 		}
+
 	case "drop":
 		return nil, fmt.Errorf("not supported now")
+
+	case "frontend":
+		if len(ss) < 2 || strings.ToLower(ss[1]) != "reload" {
+			return nil, fmt.Errorf("not supported now")
+		}
+		worker.RefreshFrontends(h.db)
+
 	default:
 		r, err := h.db.Exec(query)
 		if err != nil {
