@@ -148,8 +148,9 @@ func startFrontEnds(fes []store.Frontend) {
 
 	for _, fe := range fes {
 		// Start proxies
-		if _, ok := frontends[fe.Id]; ok {
+		if server, ok := frontends[fe.Id]; ok {
 			// Server already started.
+			updateProxy(server, &fe)
 			continue
 		}
 		logger.LogInfo("Starting FE " + fe.ListenAddr.String() + ":" + strconv.Itoa(fe.Port))
@@ -193,7 +194,21 @@ func startProxy(fe *store.Frontend) *http.Server {
 		// Disable HTTP/2.
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 	}
+	setHandler(server, fe)
 
+	go func() {
+		err := server.ListenAndServe()
+		logger.LogError("Server error: " + err.Error())
+	}()
+
+	return server
+}
+
+func updateProxy(server *http.Server, fe *store.Frontend) {
+	setHandler(server, fe)
+}
+
+func setHandler(server *http.Server, fe *store.Frontend) {
 	if fe.Type == store.PrTypeForward {
 		// Forward proxy
 		server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -210,13 +225,6 @@ func startProxy(fe *store.Frontend) *http.Server {
 			handleReverseProxyReq(w, r, fe)
 		})
 	}
-
-	go func() {
-		err := server.ListenAndServe()
-		logger.LogError("Server error: " + err.Error())
-	}()
-
-	return server
 }
 
 func handleReverseProxyReq(w http.ResponseWriter, r *http.Request, fe *store.Frontend) {
@@ -224,6 +232,7 @@ func handleReverseProxyReq(w http.ResponseWriter, r *http.Request, fe *store.Fro
 	if bends == nil {
 		logger.LogError("ReverseProxy: No backend available")
 		http.Error(w, "", http.StatusServiceUnavailable)
+		return
 	}
 	for {
 		be := bends.GetNext()

@@ -42,7 +42,10 @@ func (ch CheckHeap) Len() int {
 }
 
 func (ch CheckHeap) Less(i, j int) bool {
-	// TODO: use other parameters(like RTT) also.
+	if ch[i].ping.PacketLoss == ch[j].ping.PacketLoss {
+		return ch[i].ping.AvgRtt < ch[j].ping.AvgRtt
+	}
+
 	return ch[i].ping.PacketLoss < ch[j].ping.PacketLoss
 }
 

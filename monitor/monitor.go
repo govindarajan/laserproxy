@@ -28,7 +28,6 @@ func Init(db *sql.DB) {
 
 // GetHealthChecker used to get the HealthChecker interface
 func GetHealthChecker(db *sql.DB, fe *store.Frontend) HealthChecker {
-
 	var checker HealthChecker
 
 	healthyHostsLock.RLock()
@@ -37,6 +36,7 @@ func GetHealthChecker(db *sql.DB, fe *store.Frontend) HealthChecker {
 	if !ok {
 		return nil
 	}
+
 	switch fe.Balance {
 	case store.BEST:
 		checker = &BestRoute{}
@@ -122,12 +122,17 @@ func processCheckResult(chanCheckResult chan CheckResult) {
 
 func replaceCheckResult(existing []CheckResult, res CheckResult) []CheckResult {
 	var newRes = make([]CheckResult, 0)
+	found := false
 	for _, eRes := range existing {
 		if res.be.Host == eRes.be.Host {
+			found = true
 			newRes = append(newRes, res)
 		} else {
 			newRes = append(newRes, eRes)
 		}
+	}
+	if !found {
+		newRes = append(newRes, res)
 	}
 	return newRes
 }

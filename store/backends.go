@@ -29,7 +29,7 @@ func InitBackend(db *sql.DB) error {
 		CheckInterval INT NOT NULL DEFAULT 0,  Weight INT CHECK (Weight >= 0) NOT NULL DEFAULT 1,
 		Status VARCHAR CHECK (UPPER(Status) IN ('ONLINE','SHUNNED','OFFLINE')) NOT NULL DEFAULT 'ONLINE',
 		MaxRequests INT CHECK (MaxRequests >=0) NOT NULL DEFAULT 100, 
-		PRIMARY KEY (GroupId, Host) );
+		UNIQUE(GroupId, Host) );
 		`
 	_, err := db.Exec(stmt)
 	if err != nil {
@@ -42,7 +42,7 @@ func WriteBackend(db *sql.DB, be *Backend) error {
 	if be == nil {
 		return errors.New("Empty Proxy values are given")
 	}
-	stmt, err := db.Prepare("REPLACE INTO Backend (GroupId, Host, CheckURL, CheckInterval, Weight, MaxRequests) VALUES (?, ?, ?, ?, ?, ?, ?)")
+	stmt, err := db.Prepare("REPLACE INTO Backend (GroupId, Host, CheckURL, CheckInterval, Weight, MaxRequests) VALUES (?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}
