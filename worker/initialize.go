@@ -31,10 +31,24 @@ func initDB() {
 		logger.LogError("InitDB GetConn: " + err.Error())
 		os.Exit(1)
 	}
-	if err = store.InitMainDB(maindb); err != nil {
+	if err = store.InitDB(maindb, "main"); err != nil {
 		logger.LogError("InitDB InitTable: " + err.Error())
 		os.Exit(2)
 	}
+
+	filedb, err := store.GetFileDBConn()
+	if err != nil {
+		logger.LogError("Init FileDB GetConn: " + err.Error())
+		os.Exit(1)
+	}
+	if err = store.InitDB(filedb, "file"); err != nil {
+		logger.LogError("Init FileDB InitTable: " + err.Error())
+		os.Exit(2)
+	}
+
+	store.LoadConfigFromDisk(maindb)
+	RefreshFrontends(maindb)
+
 }
 
 func checkAndUpdateIPChange() {

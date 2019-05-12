@@ -35,7 +35,7 @@ func WriteTargets(db *sql.DB, t *Targets) error {
 	if t == nil {
 		return errors.New("Empty target values are given")
 	}
-	stmt, err := db.Prepare("REPLACE INTO Targets (Hostname, CheckURL, CheckInterval, Balance) VALUES (?, ?, ?, ?)")
+	stmt, err := db.Prepare("INSERT or REPLACE INTO Targets (Hostname, CheckURL, CheckInterval, Balance) VALUES (?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}

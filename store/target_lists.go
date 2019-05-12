@@ -12,12 +12,12 @@ type TargetLists struct {
 	Score    int
 }
 
-func InitTargetLists(db *sql.DB) error {
+func InitTargetLists(db *sql.DB, dName string) error {
 	stmt := `
 	CREATE TABLE IF NOT EXISTS TargetLists (
 	Hostname VARCHAR NOT NULL, IP VARCHAR NOT NULL,
 	Score INT NOT NULL DEFAULT 0);
-	CREATE INDEX targetlist_hostname ON TargetLists(Hostname);
+	CREATE INDEX IF NOT EXISTS ` + dName + `targetlist_hostname ON TargetLists(Hostname);
 	`
 	_, err := db.Exec(stmt)
 	if err != nil {

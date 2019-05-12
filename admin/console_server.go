@@ -8,7 +8,6 @@ import (
 
 	"github.com/govindarajan/laserproxy/logger"
 	"github.com/govindarajan/laserproxy/store"
-	"github.com/govindarajan/laserproxy/worker"
 	"github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/server"
 )
@@ -72,9 +71,10 @@ func (h *SQLiteHandler) HandleQuery(query string) (*mysql.Result, error) {
 		}
 
 		var sr [][]interface{}
-		rowVals := make([]interface{}, len(cl))
-		rowValPtrs := make([]interface{}, len(cl))
 		for rows.Next() {
+			rowVals := make([]interface{}, len(cl))
+			rowValPtrs := make([]interface{}, len(cl))
+
 			for i, _ := range cl {
 				rowValPtrs[i] = &rowVals[i]
 			}
@@ -93,10 +93,19 @@ func (h *SQLiteHandler) HandleQuery(query string) (*mysql.Result, error) {
 		return nil, fmt.Errorf("not supported now")
 
 	case "frontend":
-		if len(ss) < 2 || strings.ToLower(ss[1]) != "reload" {
-			return nil, fmt.Errorf("not supported now")
+		if err := handleFrontendCmd(ss, h.db); err != nil {
+			return nil, err
 		}
-		worker.RefreshFrontends(h.db)
+
+	case "save":
+		if err := handleSaveCmd(ss, h.db); err != nil {
+			return nil, err
+		}
+
+	case "load":
+		if err := handleLoadCmd(ss, h.db); err != nil {
+			return nil, err
+		}
 
 	default:
 		r, err := h.db.Exec(query)

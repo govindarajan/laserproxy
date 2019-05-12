@@ -132,6 +132,7 @@ func getTargetIPIfAny(host string) *string {
 }
 
 func RefreshFrontends(db *sql.DB) error {
+	logger.LogDebug("Refreshing Frontend servers")
 	fes, err := store.ReadFrontends(db)
 	if err != nil {
 		return err
@@ -151,7 +152,7 @@ func startFrontEnds(fes []store.Frontend) {
 			// Server already started.
 			continue
 		}
-		logger.LogInfo("Starting FE " + fe.ListenAddr.String() + strconv.Itoa(fe.Port))
+		logger.LogInfo("Starting FE " + fe.ListenAddr.String() + ":" + strconv.Itoa(fe.Port))
 		server := startProxy(&fe)
 		frontends[fe.Id] = server
 	}

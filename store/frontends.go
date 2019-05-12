@@ -29,11 +29,11 @@ type Frontend struct {
 }
 
 func InitFrontend(db *sql.DB) error {
-	stmt := `CREATE TABLE IF NOT EXISTS Frontend (Id INT NOT NULL DEFAULT 0, 
+	stmt := `CREATE TABLE IF NOT EXISTS Frontend (Id INT PRIMARY KEY UNIQUE, 
 		ListenAddr VARCHAR NOT NULL , Port INT CHECK (Port >= 0) NOT NULL DEFAULT 8080,  
 		Balance VARCHAR CHECK (Balance in ('WEIGHT','BEST')) NOT NULL DEFAULT 'BEST',
 		Type VARCHAR CHECK (UPPER(Type) IN ('FORWARD','REVERSE','BOTH')) NOT NULL DEFAULT 'BOTH', 
-		PRIMARY KEY (Id) );
+		UNIQUE(ListenAddr, Port));
 		`
 	_, err := db.Exec(stmt)
 	if err != nil {
@@ -46,7 +46,7 @@ func WriteFrontend(db *sql.DB, fe *Frontend) error {
 	if fe == nil {
 		return errors.New("Empty Proxy values are given")
 	}
-	stmt, err := db.Prepare("REPLACE INTO Frontend (Id, ListenAddr, Port, Balance, Type) VALUES (?, ?, ?, ?, ?)")
+	stmt, err := db.Prepare("INSERT INTO Frontend (Id, ListenAddr, Port, Balance, Type) VALUES (?, ?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}
